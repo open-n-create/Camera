@@ -1,4 +1,4 @@
-name: Build Unsigned iOS Camera IPA via Xcode
+name: Build and Codesign iOS Camera IPA with Your Certificate
 
 on:
   push:
@@ -12,20 +12,54 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Build with xcodebuild
+      - name: Setup Certificate and Mobileprovision
         run: |
-          xcodebuild -project Camera.xcodeproj -scheme Camera -sdk iphoneos -configuration Release CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO BUILD_DIR=build
+          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain-db
+          KEYCHAIN_PASS="pass1234"
           
-          mkdir -p Payload
-          cp -r build/Release-iphoneos/Camera.app Payload/
+          security create-keychain -p "$KEYCHAIN_PASS" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASS" $KEYCHAIN_PATH
+          
+          echo "${{ secrets.P12_B64 }}" | base64 --decode > $RUNNER_TEMP/cert.p12
+          echo "${{ secrets.PROV_B64 }}" | base64 --decode > $RUNNER_TEMP/profile.mobileprovision
+          
+          security import $RUNNER_TEMP/cert.p12 -k $KEYCHAIN_PATH -P "1234" -A -t cert -f pkcs12 -z $KEYCHAIN_PATH
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASS" $KEYCHAIN_PATH
+          
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp $RUNNER_TEMP/profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+
+      - name: Compile and Codesign Native IPA
+        run: |
+          mkdir -p Payload/Camera.app
+          
+          # Compile Objective-C source into Mach-O 64-bit iOS Executable
+          xcrun -sdk iphoneos clang -arch arm64 -miphoneos-version-min=14.0 \
+            -fobjc-arc \
+            CameraApp/main.m \
+            -o Payload/Camera.app/Camera \
+            -framework UIKit -framework WebKit -framework AVFoundation -framework Photos
+            
           cp -r web_src/* Payload/Camera.app/
           cp icon.png Payload/Camera.app/AppIcon60x60@3x.png
           cp icon.png Payload/Camera.app/AppIcon60x60@2x.png
+          cp icon.png Payload/Camera.app/icon.png
+          cp $RUNNER_TEMP/profile.mobileprovision Payload/Camera.app/embedded.mobileprovision
           
-          zip -r Camera_Unsigned.ipa Payload
+          # Convert Info.plist to binary plist
+          plutil -convert binary1 Payload/Camera.app/Info.plist
+          
+          # Sign app bundle with Apple codesign tool
+          CERT_IDENTITY=$(security find-identity -v -p codesigning | grep "Apple Development" | head -1 | awk -F '"' '{print $2}')
+          echo "Signing with identity: $CERT_IDENTITY"
+          
+          codesign --force --sign "$CERT_IDENTITY" --timestamp=none Payload/Camera.app
+          
+          zip -r Camera_Signed.ipa Payload
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Camera_Unsigned
-          path: Camera_Unsigned.ipa
+          name: Camera_Signed
+          path: Camera_Signed.ipa
