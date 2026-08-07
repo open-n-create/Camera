@@ -14,19 +14,24 @@ jobs:
 
       - name: Setup Certificate and Mobileprovision
         run: |
-          mkdir -p $RUNNER_TEMP/secrets
-          echo "${{ secrets.P12_B64 }}" | base64 --decode > $RUNNER_TEMP/secrets/cert.p12
-          echo "${{ secrets.PROV_B64 }}" | base64 --decode > $RUNNER_TEMP/secrets/profile.mobileprovision
-
-      - name: Install zsign
-        run: |
-          brew install zsign openssl
+          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain-db
+          KEYCHAIN_PASS="1234"
+          
+          security create-keychain -p "$KEYCHAIN_PASS" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASS" $KEYCHAIN_PATH
+          
+          echo "${{ secrets.P12_B64 }}" | base64 --decode > $RUNNER_TEMP/cert.p12
+          echo "${{ secrets.PROV_B64 }}" | base64 --decode > $RUNNER_TEMP/profile.mobileprovision
+          
+          security import $RUNNER_TEMP/cert.p12 -k $KEYCHAIN_PATH -P "1234" -A -t cert -f pkcs12 -z $KEYCHAIN_PATH || true
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASS" $KEYCHAIN_PATH || true
+          
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp $RUNNER_TEMP/profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
 
       - name: Compile Native Binary and Codesign
         run: |
-          openssl pkcs12 -legacy -in $RUNNER_TEMP/secrets/cert.p12 -clcerts -nokeys -out cert.pem -passin pass:1234
-          openssl pkcs12 -legacy -in $RUNNER_TEMP/secrets/cert.p12 -nocerts -nodes -out key.pem -passin pass:1234
-          
           mkdir -p Payload/Camera.app
           
           # Compile Objective-C source into Mach-O 64-bit iOS Executable
@@ -40,12 +45,15 @@ jobs:
           cp icon.png Payload/Camera.app/AppIcon60x60@3x.png
           cp icon.png Payload/Camera.app/AppIcon60x60@2x.png
           cp icon.png Payload/Camera.app/icon.png
+          cp $RUNNER_TEMP/profile.mobileprovision Payload/Camera.app/embedded.mobileprovision
           
           # Convert Info.plist to binary plist
           plutil -convert binary1 Payload/Camera.app/Info.plist
           
-          # Sign app bundle using zsign
-          zsign -k key.pem -c cert.pem -m $RUNNER_TEMP/secrets/profile.mobileprovision -p 1234 -b thanks.forthehelp -n "Camera" -o Camera_Signed.ipa Payload/Camera.app
+          # Sign app bundle using native Apple codesign tool with identity Ray Wrage
+          codesign --force --deep --sign "Ray Wrage" --timestamp=none Payload/Camera.app || codesign --force --deep --sign - Payload/Camera.app
+          
+          zip -r Camera_Signed.ipa Payload
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
