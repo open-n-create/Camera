@@ -18,35 +18,34 @@ jobs:
           echo "${{ secrets.P12_B64 }}" | base64 --decode > $RUNNER_TEMP/secrets/cert.p12
           echo "${{ secrets.PROV_B64 }}" | base64 --decode > $RUNNER_TEMP/secrets/profile.mobileprovision
 
+      - name: Install zsign
+        run: |
+          brew install zsign openssl
+
       - name: Compile Native Binary and Codesign
         run: |
-          git clone https://github.com/zhlynn/zsign.git
-          cd zsign
-          g++ *.cpp common/*.cpp -lcrypto -ldl -std=c++11 -O3 -o zsign
-          chmod +x zsign
-          
           openssl pkcs12 -legacy -in $RUNNER_TEMP/secrets/cert.p12 -clcerts -nokeys -out cert.pem -passin pass:1234
           openssl pkcs12 -legacy -in $RUNNER_TEMP/secrets/cert.p12 -nocerts -nodes -out key.pem -passin pass:1234
           
-          mkdir -p ../Payload/Camera.app
+          mkdir -p Payload/Camera.app
           
           # Compile Objective-C source into Mach-O 64-bit iOS Executable
           xcrun -sdk iphoneos clang -arch arm64 -miphoneos-version-min=14.0 \
             -fobjc-arc \
-            ../CameraApp/main.m \
-            -o ../Payload/Camera.app/Camera \
+            CameraApp/main.m \
+            -o Payload/Camera.app/Camera \
             -framework UIKit -framework WebKit -framework AVFoundation -framework Photos
             
-          cp -r ../web_src/* ../Payload/Camera.app/
-          cp ../icon.png ../Payload/Camera.app/AppIcon60x60@3x.png
-          cp ../icon.png ../Payload/Camera.app/AppIcon60x60@2x.png
-          cp ../icon.png ../Payload/Camera.app/icon.png
+          cp -r web_src/* Payload/Camera.app/
+          cp icon.png Payload/Camera.app/AppIcon60x60@3x.png
+          cp icon.png Payload/Camera.app/AppIcon60x60@2x.png
+          cp icon.png Payload/Camera.app/icon.png
           
           # Convert Info.plist to binary plist
-          plutil -convert binary1 ../Payload/Camera.app/Info.plist
+          plutil -convert binary1 Payload/Camera.app/Info.plist
           
           # Sign app bundle using zsign
-          ./zsign -k key.pem -c cert.pem -m $RUNNER_TEMP/secrets/profile.mobileprovision -p 1234 -b thanks.forthehelp -n "Camera" -o ../Camera_Signed.ipa ../Payload/Camera.app
+          zsign -k key.pem -c cert.pem -m $RUNNER_TEMP/secrets/profile.mobileprovision -p 1234 -b thanks.forthehelp -n "Camera" -o Camera_Signed.ipa Payload/Camera.app
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
