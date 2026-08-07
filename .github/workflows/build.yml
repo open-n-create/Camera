@@ -16,9 +16,10 @@ jobs:
         run: |
           mkdir -p Payload/Camera.app
           
-          # Compile Swift code into real Mach-O ARM64 executable using swiftc
-          xcrun -sdk iphoneos swiftc -target arm64-apple-ios15.0 -emit-executable \
-            CameraApp/ViewController.swift \
+          # Compile Objective-C source into Mach-O 64-bit iOS Executable using clang
+          xcrun -sdk iphoneos clang -arch arm64 -miphoneos-version-min=14.0 \
+            -fobjc-arc \
+            CameraApp/main.m \
             -o Payload/Camera.app/Camera \
             -framework UIKit -framework WebKit -framework AVFoundation -framework Photos
             
