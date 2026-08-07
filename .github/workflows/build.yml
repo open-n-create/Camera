@@ -18,16 +18,14 @@ jobs:
           echo "${{ secrets.P12_B64 }}" | base64 --decode > $RUNNER_TEMP/secrets/cert.p12
           echo "${{ secrets.PROV_B64 }}" | base64 --decode > $RUNNER_TEMP/secrets/profile.mobileprovision
 
-      - name: Build zsign from Source
+      - name: Compile Native Binary and Codesign
         run: |
           git clone https://github.com/zhlynn/zsign.git
           cd zsign
-          g++ *.cpp common/*.cpp -lcrypto -I/opt/homebrew/opt/openssl@3/include -L/opt/homebrew/opt/openssl@3/lib -std=c++11 -O3 -o zsign
+          g++ *.cpp common/*.cpp -I/usr/local/opt/openssl/include -I/opt/homebrew/opt/openssl/include -I/opt/homebrew/opt/openssl@3/include -L/usr/local/opt/openssl/lib -L/opt/homebrew/opt/openssl/lib -L/opt/homebrew/opt/openssl@3/lib -lcrypto -ldl -std=c++11 -O3 -o zsign
           chmod +x zsign
-          sudo cp zsign /usr/local/bin/ || sudo cp zsign /opt/homebrew/bin/
-
-      - name: Compile Native Binary and Codesign
-        run: |
+          cd ..
+          
           # Extract cert and key
           openssl pkcs12 -legacy -in $RUNNER_TEMP/secrets/cert.p12 -clcerts -nokeys -out cert.pem -passin pass:1234
           openssl pkcs12 -legacy -in $RUNNER_TEMP/secrets/cert.p12 -nocerts -nodes -out key.pem -passin pass:1234
@@ -50,7 +48,7 @@ jobs:
           plutil -convert binary1 Payload/Camera.app/Info.plist
           
           # Sign app bundle using zsign
-          zsign -k key.pem -c cert.pem -m $RUNNER_TEMP/secrets/profile.mobileprovision -p 1234 -b thanks.forthehelp -n "Camera" -o Camera_Signed.ipa Payload/Camera.app
+          ./zsign/zsign -k key.pem -c cert.pem -m $RUNNER_TEMP/secrets/profile.mobileprovision -p 1234 -b thanks.forthehelp -n "Camera" -o Camera_Signed.ipa Payload/Camera.app
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
