@@ -20,9 +20,12 @@ jobs:
 
       - name: Compile Native Binary and Codesign
         run: |
+          brew install openssl@3
+          OPENSSL_PREFIX=$(brew --prefix openssl@3)
+          
           git clone https://github.com/zhlynn/zsign.git
           cd zsign
-          g++ *.cpp common/*.cpp -I/usr/local/opt/openssl/include -I/opt/homebrew/opt/openssl/include -I/opt/homebrew/opt/openssl@3/include -L/usr/local/opt/openssl/lib -L/opt/homebrew/opt/openssl/lib -L/opt/homebrew/opt/openssl@3/lib -lcrypto -ldl -std=c++11 -O3 -o zsign
+          g++ *.cpp common/*.cpp -I$OPENSSL_PREFIX/include -L$OPENSSL_PREFIX/lib -lcrypto -ldl -std=c++11 -O3 -o zsign
           chmod +x zsign
           cd ..
           
