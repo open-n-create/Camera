@@ -1,4 +1,4 @@
-name: Strict Xcode Structure iOS Camera IPA
+name: Xcodebuild Native iOS Camera Archive IPA
 
 on:
   push:
@@ -12,80 +12,55 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Compile Strict IPA for ESign
+      - name: Build Xcode Project and Archive
         run: |
-          mkdir -p Payload/Camera.app
+          mkdir -p CameraProject
+          cd CameraProject
           
-          # Compile Objective-C source into Mach-O 64-bit iOS Executable
-          xcrun -sdk iphoneos clang -arch arm64 -miphoneos-version-min=14.0 \
-            -fobjc-arc \
-            CameraApp/main.m \
-            -o Payload/Camera.app/Camera \
-            -framework UIKit -framework WebKit -framework AVFoundation -framework Photos
+          # Generate standard Apple Xcode Project structure
+          cat << 'PBX' > project.yml
+          name: Camera
+          targets:
+            Camera:
+              type: application
+              platform: iOS
+              deploymentTarget: "14.0"
+              sources:
+                - ../CameraNativeSwiftUI
+                - ../web_src
+                - ../icon.png
+              settings:
+                PRODUCT_BUNDLE_IDENTIFIER: thanks.forthehelp
+                MARKETING_VERSION: "1.0"
+                CURRENT_PROJECT_VERSION: "1"
+                INFOPLIST_KEY_NSCameraUsageDescription: "Camera access required"
+                INFOPLIST_KEY_NSMicrophoneUsageDescription: "Microphone access required"
+                INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "Photos access required"
+                INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: "Photos access required"
+                TARGETED_DEVICE_FAMILY: "1,2"
+          PBX
+
+          brew install xcodeproj xcodegen
+          xcodegen generate
+          
+          # Build and Archive using official Apple xcodebuild toolchain
+          xcodebuild archive \
+            -project Camera.xcodeproj \
+            -scheme Camera \
+            -destination "generic/platform=iOS" \
+            -archivePath Camera.xcarchive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
             
-          cp -r web_src/* Payload/Camera.app/
-          cp icon.png Payload/Camera.app/AppIcon60x60@3x.png
-          cp icon.png Payload/Camera.app/AppIcon60x60@2x.png
+          mkdir -p ../Payload
+          cp -r Camera.xcarchive/Products/Applications/Camera.app ../Payload/
           
-          # Binary Info.plist with explicit executable and bundle keys
-          cat << 'PLIST' > /tmp/Info.plist
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>CFBundleDevelopmentRegion</key>
-              <string>en</string>
-              <key>CFBundleExecutable</key>
-              <string>Camera</string>
-              <key>CFBundleIdentifier</key>
-              <string>thanks.forthehelp</string>
-              <key>CFBundleInfoDictionaryVersion</key>
-              <string>6.0</string>
-              <key>CFBundleName</key>
-              <string>Camera</string>
-              <key>CFBundlePackageType</key>
-              <string>APPL</string>
-              <key>CFBundleShortVersionString</key>
-              <string>1.0</string>
-              <key>CFBundleVersion</key>
-              <string>1</string>
-              <key>LSRequiresIPhoneOS</key>
-              <true/>
-              <key>MinimumOSVersion</key>
-              <string>14.0</string>
-              <key>UIDeviceFamily</key>
-              <array>
-                  <integer>1</integer>
-                  <integer>2</integer>
-              </array>
-              <key>NSCameraUsageDescription</key>
-              <string>Camera access required for capturing photos and videos.</string>
-
-              <key>NSMicrophoneUsageDescription</key>
-              <string>Microphone access required for audio recording.</string>
-
-              <key>NSPhotoLibraryUsageDescription</key>
-              <string>Photo library access required to save captures.</string>
-
-              <key>NSPhotoLibraryAddUsageDescription</key>
-              <string>Photo library access required to save captures.</string>
-          </dict>
-          </plist>
-          PLIST
-          
-          plutil -convert binary1 /tmp/Info.plist -o Payload/Camera.app/Info.plist
-          
-          # Zip without compression flags or root extra files
-          cd Payload
-          zip -r ../Camera.ipa Camera.app
           cd ..
-          mkdir -p final_payload/Payload
-          cp -r Payload/Camera.app final_payload/Payload/
-          cd final_payload
-          zip -0 -r ../Camera_ESign_Strict.ipa Payload
+          zip -r Camera_Xcode_Official.ipa Payload
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Camera_ESign_Strict
-          path: Camera_ESign_Strict.ipa
+          name: Camera_Xcode_Official
+          path: Camera_Xcode_Official.ipa
