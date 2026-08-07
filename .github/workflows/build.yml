@@ -1,4 +1,4 @@
-name: Build Unsigned iOS Camera IPA with Native Mach-O Executable
+name: Build Unsigned iOS Camera IPA via Xcode
 
 on:
   push:
@@ -12,24 +12,15 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Compile Native Mach-O Binary
+      - name: Build with xcodebuild
         run: |
-          mkdir -p Payload/Camera.app
+          xcodebuild -project Camera.xcodeproj -scheme Camera -sdk iphoneos -configuration Release CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO BUILD_DIR=build
           
-          # Compile Objective-C source into Mach-O 64-bit iOS Executable using clang
-          xcrun -sdk iphoneos clang -arch arm64 -miphoneos-version-min=14.0 \
-            -fobjc-arc \
-            CameraApp/main.m \
-            -o Payload/Camera.app/Camera \
-            -framework UIKit -framework WebKit -framework AVFoundation -framework Photos
-            
+          mkdir -p Payload
+          cp -r build/Release-iphoneos/Camera.app Payload/
           cp -r web_src/* Payload/Camera.app/
           cp icon.png Payload/Camera.app/AppIcon60x60@3x.png
           cp icon.png Payload/Camera.app/AppIcon60x60@2x.png
-          cp icon.png Payload/Camera.app/icon.png
-          
-          # Convert Info.plist to binary plist
-          plutil -convert binary1 Payload/Camera.app/Info.plist
           
           zip -r Camera_Unsigned.ipa Payload
 
