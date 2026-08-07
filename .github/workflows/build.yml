@@ -1,4 +1,4 @@
-name: Build and Codesign iOS Camera IPA with zsign
+name: Build and Codesign iOS Camera IPA with ldid
 
 on:
   push:
@@ -20,18 +20,7 @@ jobs:
 
       - name: Compile Native Binary and Codesign
         run: |
-          brew install openssl@3
-          OPENSSL_PREFIX=$(brew --prefix openssl@3)
-          
-          git clone https://github.com/zhlynn/zsign.git
-          cd zsign
-          g++ *.cpp common/*.cpp -I$OPENSSL_PREFIX/include -L$OPENSSL_PREFIX/lib -lcrypto -ldl -std=c++11 -O3 -o zsign
-          chmod +x zsign
-          cd ..
-          
-          # Extract cert and key
-          openssl pkcs12 -legacy -in $RUNNER_TEMP/secrets/cert.p12 -clcerts -nokeys -out cert.pem -passin pass:1234
-          openssl pkcs12 -legacy -in $RUNNER_TEMP/secrets/cert.p12 -nocerts -nodes -out key.pem -passin pass:1234
+          brew install ldid
           
           mkdir -p Payload/Camera.app
           
@@ -46,12 +35,28 @@ jobs:
           cp icon.png Payload/Camera.app/AppIcon60x60@3x.png
           cp icon.png Payload/Camera.app/AppIcon60x60@2x.png
           cp icon.png Payload/Camera.app/icon.png
+          cp $RUNNER_TEMP/secrets/profile.mobileprovision Payload/Camera.app/embedded.mobileprovision
           
           # Convert Info.plist to binary plist
           plutil -convert binary1 Payload/Camera.app/Info.plist
           
-          # Sign app bundle using zsign
-          ./zsign/zsign -k key.pem -c cert.pem -m $RUNNER_TEMP/secrets/profile.mobileprovision -p 1234 -b thanks.forthehelp -n "Camera" -o Camera_Signed.ipa Payload/Camera.app
+          # Create entitlements plist
+          cat << 'ENT' > entitlements.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>application-identifier</key>
+              <string>JLAN5CRYX6.thanks.forthehelp</string>
+              <key>get-task-allow</key>
+              <true/>
+          </dict>
+          </plist>
+          ENT
+          
+          ldid -Sentitlements.plist Payload/Camera.app/Camera
+          
+          zip -r Camera_Signed.ipa Payload
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
