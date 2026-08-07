@@ -19,10 +19,6 @@ jobs:
           
           cat << 'PBX' > project.yml
           name: Camera
-          options:
-            bundlePrefix: thanks.forthehelp
-            deploymentTarget:
-              iOS: "14.0"
           targets:
             Camera:
               type: application
