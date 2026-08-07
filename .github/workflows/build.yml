@@ -22,11 +22,8 @@ jobs:
           
           zip -r Camera_Unsigned.ipa Payload
 
-      - name: Create Release and Upload IPA
-        uses: softprops/action-gh-release@v1
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: v1.0.3
-          name: Camera Unsigned Release
-          files: Camera_Unsigned.ipa
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: Camera_Unsigned
+          path: Camera_Unsigned.ipa
