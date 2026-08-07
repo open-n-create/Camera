@@ -1,4 +1,4 @@
-name: Build and Codesign iOS Camera IPA with ldid
+name: Xcode Project iOS Camera IPA Build
 
 on:
   push:
@@ -18,10 +18,8 @@ jobs:
           echo "${{ secrets.P12_B64 }}" | base64 --decode > $RUNNER_TEMP/secrets/cert.p12
           echo "${{ secrets.PROV_B64 }}" | base64 --decode > $RUNNER_TEMP/secrets/profile.mobileprovision
 
-      - name: Compile Native Binary and Codesign
+      - name: Compile Native Binary
         run: |
-          brew install ldid
-          
           mkdir -p Payload/Camera.app
           
           # Compile Objective-C source into Mach-O 64-bit iOS Executable
@@ -40,26 +38,10 @@ jobs:
           # Convert Info.plist to binary plist
           plutil -convert binary1 Payload/Camera.app/Info.plist
           
-          # Create entitlements plist
-          cat << 'ENT' > entitlements.plist
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>application-identifier</key>
-              <string>JLAN5CRYX6.thanks.forthehelp</string>
-              <key>get-task-allow</key>
-              <true/>
-          </dict>
-          </plist>
-          ENT
-          
-          ldid -Sentitlements.plist Payload/Camera.app/Camera
-          
-          zip -r Camera_Signed.ipa Payload
+          zip -r Camera_For_ESign.ipa Payload
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Camera_Signed
-          path: Camera_Signed.ipa
+          name: Camera_For_ESign
+          path: Camera_For_ESign.ipa
