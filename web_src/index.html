@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Camera iOS 26</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', sans-serif;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            overflow: hidden;
+            position: fixed;
+        }
+
+        #app-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+        }
+
+        /* Viewfinder */
+        #viewfinder {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 1;
+            transition: filter 0.3s ease;
+        }
+
+        /* Top Liquid Glass Bar */
+        .top-bar {
+            position: absolute;
+            top: env(safe-area-inset-top, 45px);
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.18);
+            backdrop-filter: blur(30px) saturate(200%);
+            -webkit-backdrop-filter: blur(30px) saturate(200%);
+            border-radius: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.35);
+        }
+
+        .top-btn {
+            color: #fff;
+            font-size: 12px;
+            font-weight: 600;
+            background: none;
+            border: none;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+        }
+
+        .glass-pill {
+            background: rgba(255, 255, 255, 0.25);
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+        }
+
+        /* Recording Timer Indicator */
+        #rec-timer {
+            display: none;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255, 59, 48, 0.9);
+            color: #fff;
+            font-weight: 700;
+            font-size: 13px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            box-shadow: 0 0 12px rgba(255, 59, 48, 0.6);
+        }
+
+        .rec-dot {
+            width: 8px;
+            height: 8px;
+            background: #fff;
+            border-radius: 50%;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.2; }
+        }
+
+        /* Side Thumb Dial */
+        .thumb-dial-container {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            padding: 12px 6px;
+            border-radius: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+        }
+
+        .dial-label {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 10px;
+            font-weight: 700;
+        }
+
+        .thumb-slider {
+            writing-mode: bt-lr;
+            -webkit-appearance: slider-vertical;
+            width: 8px;
+            height: 120px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            outline: none;
+        }
+
+        /* Lens Picker Bubbles */
+        .lens-picker {
+            position: absolute;
+            bottom: 185px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            display: flex;
+            gap: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 4px 8px;
+            border-radius: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        .lens-bubble {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 12px;
+            font-weight: 700;
+            background: rgba(255, 255, 255, 0.12);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .lens-bubble.active {
+            background: #ffd700;
+            color: #000;
+            transform: scale(1.1);
+            box-shadow: 0 0 12px rgba(255, 215, 0, 0.6);
+        }
+
+        /* Mode Selector Carousel */
+        .mode-selector {
+            position: absolute;
+            bottom: 125px;
+            width: 100%;
+            z-index: 10;
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+
+        .mode-selector::-webkit-scrollbar {
+            display: none;
+        }
+
+        .mode-item {
+            color: rgba(255, 255, 255, 0.55);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            padding: 4px 8px;
+            transition: color 0.2s ease;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+
+        .mode-item.active {
+            color: #ffd700;
+            text-shadow: 0 0 8px rgba(255, 215, 0, 0.6);
+        }
+
+        /* Bottom Controls Bar */
+        .bottom-bar {
+            position: absolute;
+            bottom: env(safe-area-inset-bottom, 30px);
+            width: 100%;
+            padding: 0 35px;
+            z-index: 10;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .gallery-preview {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            overflow: hidden;
+            background-size: cover;
+            background-position: center;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+        }
+
+        /* Liquid Glass Shutter Ring */
+        .shutter-outer {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 4px solid rgba(255, 255, 255, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .shutter-inner {
+            width: 66px;
+            height: 66px;
+            border-radius: 50%;
+            background: #fff;
+            transition: all 0.2s ease;
+        }
+
+        /* Recording Video Mode Styling */
+        body.is-recording .shutter-inner {
+            background: #ff3b30;
+            border-radius: 12px;
+            transform: scale(0.55);
+        }
+
+        .camera-flip {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            cursor: pointer;
+        }
+
+        .svg-icon {
+            width: 20px;
+            height: 20px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        #flash-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #fff;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 100;
+            transition: opacity 0.15s ease-out;
+        }
+    </style>
+</head>
+<body>
+    <div id="app-container">
+        <video id="viewfinder" autoplay playsinline muted></video>
+        <div id="flash-overlay"></div>
+
+        <!-- Top Liquid Glass Bar -->
+        <div class="top-bar">
+            <div id="rec-timer"><div class="rec-dot"></div><span id="timer-text">00:00</span></div>
+            <button class="top-btn" id="res-btn"><span class="glass-pill">RAW Max</span></button>
+            <button class="top-btn">
+                <svg class="svg-icon" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                <span>Auto</span>
+            </button>
+            <button class="top-btn">4K · 60</button>
+        </div>
+
+        <!-- Side Thumb Dial -->
+        <div class="thumb-dial-container">
+            <span class="dial-label">EV</span>
+            <input type="range" class="thumb-slider" min="-2" max="2" step="0.1" value="0" oninput="adjustEV(this.value)">
+            <span class="dial-label" id="ev-val">0.0</span>
+        </div>
+
+        <!-- Lens Picker Bubbles -->
+        <div class="lens-picker">
+            <div class="lens-bubble" onclick="setZoom(0.5, this)">.5</div>
+            <div class="lens-bubble active" onclick="setZoom(1, this)">1x</div>
+            <div class="lens-bubble" onclick="setZoom(2, this)">2x</div>
+            <div class="lens-bubble" onclick="setZoom(5, this)">5x</div>
+        </div>
+
+        <!-- Mode Carousel -->
+        <div class="mode-selector">
+            <div class="mode-item" onclick="selectMode('spatial', this)">Spatial</div>
+            <div class="mode-item" onclick="selectMode('cinematic', this)">Cinematic</div>
+            <div class="mode-item active" onclick="selectMode('photo', this)">Photo</div>
+            <div class="mode-item" onclick="selectMode('video', this)">Video</div>
+            <div class="mode-item" onclick="selectMode('portrait', this)">Portrait</div>
+            <div class="mode-item" onclick="selectMode('pano', this)">Pano</div>
+        </div>
+
+        <!-- Bottom Controls Bar -->
+        <div class="bottom-bar">
+            <div class="gallery-preview" id="gallery-thumb">
+                <svg class="svg-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+            </div>
+            <div class="shutter-outer" id="shutter-btn" onclick="handleShutter()">
+                <div class="shutter-inner"></div>
+            </div>
+            <div class="camera-flip" onclick="switchCamera()">
+                <svg class="svg-icon" viewBox="0 0 24 24"><path d="M20 10c0-4.418-3.582-8-8-8S4 5.582 4 10dM4 14c0 4.418 3.582 8 8 8s8-3.582 8-8"></path><polyline points="1 7 4 10 7 7"></polyline><polyline points="17 17 20 14 23 17"></polyline></svg>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentFacingMode = 'environment';
+        let mediaStream = null;
+        let videoTrack = null;
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let isRecording = false;
+        let currentMode = 'photo';
+        let timerInterval = null;
+        let secondsRecorded = 0;
+
+        async function initCamera() {
+            try {
+                if (mediaStream) {
+                    mediaStream.getTracks().forEach(track => track.stop());
+                }
+                mediaStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: currentFacingMode,
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
+                    },
+                    audio: true
+                });
+                const video = document.getElementById('viewfinder');
+                video.srcObject = mediaStream;
+                videoTrack = mediaStream.getVideoTracks()[0];
+            } catch (err) {
+                console.error('Camera access error:', err);
+            }
+        }
+
+        function triggerSilentAutoSave(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 500);
+        }
+
+        function switchCamera() {
+            currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+            initCamera();
+        }
+
+        function selectMode(mode, element) {
+            currentMode = mode;
+            document.querySelectorAll('.mode-item').forEach(m => m.classList.remove('active'));
+            element.classList.add('active');
+
+            const viewfinder = document.getElementById('viewfinder');
+            if (mode === 'portrait' || mode === 'cinematic') {
+                viewfinder.style.filter = 'contrast(1.05) saturate(1.1)';
+            } else {
+                viewfinder.style.filter = 'none';
+            }
+        }
+
+        function setZoom(factor, element) {
+            document.querySelectorAll('.lens-bubble').forEach(b => b.classList.remove('active'));
+            element.classList.add('active');
+            if (videoTrack && videoTrack.getCapabilities && videoTrack.getCapabilities().zoom) {
+                const caps = videoTrack.getCapabilities();
+                const targetZoom = Math.min(Math.max(factor, caps.zoom.min), caps.zoom.max);
+                videoTrack.applyConstraints({ advanced: [{ zoom: targetZoom }] });
+            }
+        }
+
+        function adjustEV(val) {
+            document.getElementById('ev-val').innerText = (val > 0 ? '+' : '') + parseFloat(val).toFixed(1);
+            const video = document.getElementById('viewfinder');
+            const brightness = 1 + (val * 0.25);
+            video.style.filter = 'brightness(' + brightness + ')';
+        }
+
+        function handleShutter() {
+            if (currentMode === 'video' || currentMode === 'cinematic' || currentMode === 'spatial') {
+                if (!isRecording) {
+                    startRecording();
+                } else {
+                    stopRecording();
+                }
+            } else {
+                takePhoto();
+            }
+        }
+
+        function takePhoto() {
+            const flash = document.getElementById('flash-overlay');
+            flash.style.opacity = '0.9';
+            setTimeout(() => { flash.style.opacity = '0'; }, 150);
+
+            if (navigator.vibrate) navigator.vibrate(40);
+
+            const video = document.getElementById('viewfinder');
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth || 1920;
+            canvas.height = video.videoHeight || 1080;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            canvas.toBlob((blob) => {
+                const imgUrl = URL.createObjectURL(blob);
+                document.getElementById('gallery-thumb').style.backgroundImage = 'url(' + imgUrl + ')';
+                document.getElementById('gallery-thumb').innerHTML = '';
+                triggerSilentAutoSave(blob, 'IMG_' + Date.now() + '.jpg');
+            }, 'image/jpeg', 0.95);
+        }
+
+        function startRecording() {
+            recordedChunks = [];
+            let options = { mimeType: 'video/mp4' };
+            if (!MediaRecorder.isTypeSupported('video/mp4')) {
+                options = { mimeType: 'video/webm' };
+            }
+
+            try {
+                mediaRecorder = new MediaRecorder(mediaStream, options);
+            } catch (e) {
+                mediaRecorder = new MediaRecorder(mediaStream);
+            }
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data && event.data.size > 0) {
+                    recordedChunks.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = () => {
+                const ext = (mediaRecorder.mimeType && mediaRecorder.mimeType.includes('mp4')) ? '.mp4' : '.webm';
+                const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'video/mp4' });
+                document.getElementById('gallery-thumb').style.backgroundImage = 'none';
+                document.getElementById('gallery-thumb').style.backgroundColor = 'rgba(255, 255, 255, 0.15)';
+                document.getElementById('gallery-thumb').innerHTML = '<svg class="svg-icon" viewBox="0 0 24 24"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>';
+                triggerSilentAutoSave(blob, 'VID_' + Date.now() + ext);
+            };
+
+            mediaRecorder.start(1000);
+            isRecording = true;
+            document.body.classList.add('is-recording');
+            document.getElementById('rec-timer').style.display = 'flex';
+
+            secondsRecorded = 0;
+            timerInterval = setInterval(() => {
+                secondsRecorded++;
+                const mins = String(Math.floor(secondsRecorded / 60)).padStart(2, '0');
+                const secs = String(secondsRecorded % 60).padStart(2, '0');
+                document.getElementById('timer-text').innerText = mins + ':' + secs;
+            }, 1000);
+
+            if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+                document.body.classList.remove('is-recording');
+                document.getElementById('rec-timer').style.display = 'none';
+                clearInterval(timerInterval);
+                if (navigator.vibrate) navigator.vibrate(100);
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', initCamera);
+    </script>
+</body>
+</html>
