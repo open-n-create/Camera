@@ -1,4 +1,4 @@
-name: Xcodebuild Native iOS Camera Archive IPA
+name: Xcodebuild Totally Unsigned Native Camera IPA
 
 on:
   push:
@@ -12,7 +12,7 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Build Xcode Project and Archive
+      - name: Build Pure Unsigned Xcode Archive IPA
         run: |
           mkdir -p CameraProject
           cd CameraProject
@@ -36,6 +36,9 @@ jobs:
                 INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "Photos access required"
                 INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: "Photos access required"
                 TARGETED_DEVICE_FAMILY: "1,2"
+                CODE_SIGNING_REQUIRED: "NO"
+                CODE_SIGNING_ALLOWED: "NO"
+                CODE_SIGN_IDENTITY: ""
           PBX
 
           brew install xcodegen
@@ -46,18 +49,22 @@ jobs:
             -scheme Camera \
             -destination "generic/platform=iOS" \
             -archivePath Camera.xcarchive \
-            CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY=""
             
           mkdir -p ../Payload
           cp -r Camera.xcarchive/Products/Applications/Camera.app ../Payload/
           
+          # Remove any leftover Xcode code sign placeholders
+          rm -rf ../Payload/Camera.app/_CodeSignature
+          rm -f ../Payload/Camera.app/embedded.mobileprovision
+          
           cd ..
-          zip -r Camera_Xcode_Official.ipa Payload
+          zip -r Camera_Totally_Unsigned_Xcode.ipa Payload
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Camera_Xcode_Official
-          path: Camera_Xcode_Official.ipa
+          name: Camera_Totally_Unsigned_Xcode
+          path: Camera_Totally_Unsigned_Xcode.ipa
