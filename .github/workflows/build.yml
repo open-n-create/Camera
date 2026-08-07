@@ -17,9 +17,12 @@ jobs:
           mkdir -p CameraProject
           cd CameraProject
           
-          # Generate standard Apple Xcode Project structure
           cat << 'PBX' > project.yml
           name: Camera
+          options:
+            bundlePrefix: thanks.forthehelp
+            deploymentTarget:
+              iOS: "14.0"
           targets:
             Camera:
               type: application
@@ -28,7 +31,6 @@ jobs:
               sources:
                 - ../CameraNativeSwiftUI
                 - ../web_src
-                - ../icon.png
               settings:
                 PRODUCT_BUNDLE_IDENTIFIER: thanks.forthehelp
                 MARKETING_VERSION: "1.0"
@@ -40,10 +42,9 @@ jobs:
                 TARGETED_DEVICE_FAMILY: "1,2"
           PBX
 
-          brew install xcodeproj xcodegen
+          brew install xcodegen
           xcodegen generate
           
-          # Build and Archive using official Apple xcodebuild toolchain
           xcodebuild archive \
             -project Camera.xcodeproj \
             -scheme Camera \
