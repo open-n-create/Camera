@@ -28,9 +28,11 @@ jobs:
           openssl pkcs12 -legacy -in $RUNNER_TEMP/secrets/cert.p12 -clcerts -nokeys -out cert.pem -passin pass:1234
           openssl pkcs12 -legacy -in $RUNNER_TEMP/secrets/cert.p12 -nocerts -nodes -out key.pem -passin pass:1234
 
-          # Compile Swift code to ARM64 iOS Binary
+          # Compile Swift code to ARM64 iOS Binary with SDK root
           mkdir -p Payload/Camera.app
-          xcrun -sdk iphoneos swiftc -target arm64-apple-ios14.0 \
+          SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
+          
+          xcrun swiftc -target arm64-apple-ios14.0 -sdk $SDK_PATH \
             CameraAppNative/CameraApp.swift \
             -o Payload/Camera.app/Camera \
             -framework SwiftUI -framework UIKit -framework WebKit -framework AVFoundation -framework Photos
