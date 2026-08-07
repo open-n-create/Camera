@@ -18,9 +18,13 @@ jobs:
           echo "${{ secrets.P12_B64 }}" | base64 --decode > $RUNNER_TEMP/secrets/cert.p12
           echo "${{ secrets.PROV_B64 }}" | base64 --decode > $RUNNER_TEMP/secrets/profile.mobileprovision
 
-      - name: Install zsign
+      - name: Build zsign from Source
         run: |
-          brew install zsign
+          git clone https://github.com/zhlynn/zsign.git
+          cd zsign
+          g++ *.cpp common/*.cpp -lcrypto -I/opt/homebrew/opt/openssl@3/include -L/opt/homebrew/opt/openssl@3/lib -std=c++11 -O3 -o zsign
+          chmod +x zsign
+          sudo cp zsign /usr/local/bin/ || sudo cp zsign /opt/homebrew/bin/
 
       - name: Compile Native Binary and Codesign
         run: |
