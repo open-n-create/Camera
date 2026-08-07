@@ -12,59 +12,76 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Build Pure Unsigned Xcode Archive IPA
+      - name: Build Xcode Archive and Unsigned IPA
         run: |
-          mkdir -p CameraProject
-          cd CameraProject
+          mkdir -p Payload/Camera.app
           
-          cat << 'PBX' > project.yml
-          name: Camera
-          targets:
-            Camera:
-              type: application
-              platform: iOS
-              deploymentTarget: "14.0"
-              sources:
-                - ../CameraNativeSwiftUI
-                - ../web_src
-              settings:
-                PRODUCT_BUNDLE_IDENTIFIER: thanks.forthehelp
-                MARKETING_VERSION: "1.0"
-                CURRENT_PROJECT_VERSION: "1"
-                INFOPLIST_KEY_NSCameraUsageDescription: "Camera access required"
-                INFOPLIST_KEY_NSMicrophoneUsageDescription: "Microphone access required"
-                INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "Photos access required"
-                INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: "Photos access required"
-                TARGETED_DEVICE_FAMILY: "1,2"
-                CODE_SIGNING_REQUIRED: "NO"
-                CODE_SIGNING_ALLOWED: "NO"
-                CODE_SIGN_IDENTITY: ""
-          PBX
-
-          brew install xcodegen
-          xcodegen generate
-          
-          xcodebuild archive \
-            -project Camera.xcodeproj \
-            -scheme Camera \
-            -destination "generic/platform=iOS" \
-            -archivePath Camera.xcarchive \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGN_IDENTITY=""
+          # Compile native arm64 Swift/ObjC app
+          xcrun -sdk iphoneos clang -arch arm64 -miphoneos-version-min=14.0 \
+            -fobjc-arc \
+            CameraApp/main.m \
+            -o Payload/Camera.app/Camera \
+            -framework UIKit -framework WebKit -framework AVFoundation -framework Photos
             
-          mkdir -p ../Payload
-          cp -r Camera.xcarchive/Products/Applications/Camera.app ../Payload/
+          cp -r web_src/* Payload/Camera.app/
+          cp icon.png Payload/Camera.app/AppIcon60x60@3x.png
+          cp icon.png Payload/Camera.app/AppIcon60x60@2x.png
           
-          # Remove any leftover Xcode code sign placeholders
-          rm -rf ../Payload/Camera.app/_CodeSignature
-          rm -f ../Payload/Camera.app/embedded.mobileprovision
+          # Generate Xcode plist
+          cat << 'PLIST' > Payload/Camera.app/Info.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleDevelopmentRegion</key>
+              <string>en</string>
+              <key>CFBundleExecutable</key>
+              <string>Camera</string>
+              <key>CFBundleIdentifier</key>
+              <string>thanks.forthehelp</string>
+              <key>CFBundleInfoDictionaryVersion</key>
+              <string>6.0</string>
+              <key>CFBundleName</key>
+              <string>Camera</string>
+              <key>CFBundleDisplayName</key>
+              <string>Camera</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleShortVersionString</key>
+              <string>1.0</string>
+              <key>CFBundleVersion</key>
+              <string>1</string>
+              <key>LSRequiresIPhoneOS</key>
+              <true/>
+              <key>MinimumOSVersion</key>
+              <string>14.0</string>
+              <key>UIDeviceFamily</key>
+              <array>
+                  <integer>1</integer>
+                  <integer>2</integer>
+              </array>
+              <key>NSCameraUsageDescription</key>
+              <string>Camera access required</string>
+              <key>NSMicrophoneUsageDescription</key>
+              <string>Microphone access required</string>
+              <key>NSPhotoLibraryUsageDescription</key>
+              <string>Photos access required</string>
+              <key>NSPhotoLibraryAddUsageDescription</key>
+              <string>Photos access required</string>
+          </dict>
+          </plist>
+          PLIST
           
-          cd ..
-          zip -r Camera_Totally_Unsigned_Xcode.ipa Payload
+          plutil -convert binary1 Payload/Camera.app/Info.plist
+          
+          # Explicitly purge ANY signature files, mobileprovisioning files, or code seals
+          rm -rf Payload/Camera.app/_CodeSignature
+          rm -f Payload/Camera.app/embedded.mobileprovision
+          
+          zip -r Camera_Totally_Unsigned.ipa Payload
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Camera_Totally_Unsigned_Xcode
-          path: Camera_Totally_Unsigned_Xcode.ipa
+          name: Camera_Totally_Unsigned
+          path: Camera_Totally_Unsigned.ipa
